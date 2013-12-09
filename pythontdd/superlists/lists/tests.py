@@ -6,11 +6,13 @@ from django.test import TestCase
 from lists.models import Item
 from lists.views import home_page
 
-def test_root_url_resolves_to_home_page_view(self):
+
+class HomePageTest(TestCase):
+	def test_root_url_resolves_to_home_page_view(self):
 		found = resolve('/')
 		self.assertEqual(found.func, home_page)
 
-def test_home_page_returns_correct_html(self):
+	def test_home_page_returns_correct_html(self):
 		request = HttpRequest()
 		response = home_page(request)
 		#self.assertTrue(response.content.startswith(b'<html>'))
@@ -19,20 +21,52 @@ def test_home_page_returns_correct_html(self):
 		expected_html = render_to_string('home.html')
 		self.assertEqual(response.content.decode(), expected_html)
 
-def test_home_page_can_save_a_POST_request(self):
+	def test_home_page_can_save_a_POST_request(self):
 		request = HttpRequest()
 		request.method = 'POST'
 		request.POST['item_text'] = 'A new list item'
 
 		response = home_page(request)
-		#self.assertTrue(response.content.startswith(b'<html>'))
-		self.assertIn('A new list item', response.content.decode())
-		expected_html = render_to_string(
-			'home.html',
-			{'new_item_text': 'A new list item'}
-		)
-		self.assertEqual(response.content.decode(), expected_html)
 
+		self.assertEqual(Item.objects.all().count(), 1)
+		new_item = Item.objects.all()[0]
+		self.assertEqual(new_item.text, 'A new list item')
+
+	def test_home_page_redirects_after_POST(self):
+		request = HttpRequest()
+		request.method = 'POST'
+		request.POST['item_text'] = 'A new list item'
+
+		response = home_page(request)
+
+		self.assertEqual(response.status_code, 302)
+		self.assertEqual(response['location'], '/')
+
+
+	def test_home_page_only_saves_items_when_necessary(self):
+		request = HttpRequest()
+		home_page(request)
+		self.assertEqual(Item.objects.all().count(), 0)
+
+	def home_page(request):
+		if request.method == 'POST':
+			new_item_text = request.POST['item_text']
+			Item.objects.create(text=new_item_text)
+		else:
+			new_item_text = ''
+		return render(request, 'home.html', {
+			'new_item_text': new_item_text,
+		})
+
+	def test_home_page_displays_all_list_items(self):
+		Item.objects.create(text='itemy 1')
+		Item.objects.create(text='itemy 2')
+
+		request = HttpRequest()
+		response = home_page(request)
+
+		self.assertIn('itemy 1', response.content.decode())
+		self.assertIn('itemy 2', response.content.decode())
 
 class ItemModelTest(TestCase):
 
